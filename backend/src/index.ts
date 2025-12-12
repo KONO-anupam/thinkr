@@ -2,11 +2,11 @@ import express from "express";
 import mongoose  from "mongoose";
 import jwt from "jsonwebtoken"
 import { contentModel, linkModel, userModel } from "./db.js";
-import { useMatch } from "react-router-dom";
-import { JWT_PASSWORD } from "./config.js";
 import { userMiddleware } from "./middleware.js";
 import bcrypt from "bcryptjs";
-
+import dotenv from "dotenv";
+import crypto from "crypto";
+dotenv.config();
 const app = express();
 app.use(express.json());
 
@@ -36,33 +36,34 @@ app.post("/api/v1/signup", async (req,res)=>{
 app.post("/api/v1/signin",async (req,res)=>{
     const username = req.body.username;
     const password = req.body.password;
-
+    const JWT_PASSWORD = process.env.JWT_PASSWORD;
+    if(!JWT_PASSWORD){
+        throw new Error("password not set in .env!")
+    }
     const existingUser = await userModel.findOne({
-        username,
-        password
+        username
+     
     })
-    if(existingUser){
-        const token = jwt.sign({
-            id: existingUser._id
-        },JWT_PASSWORD)
+     if (!existingUser)
+    return res.status(403).json({ message: "incorrect credentials" });
 
-        res.json({
-           message: 'you are signed in' 
-        })
-    }
-    else{
-        res.status(403).json({
-            message: "incorrect credentials"
-        })
-    }
+  const isMatch = await bcrypt.compare(password, existingUser.password!);
+  if (!isMatch)
+    return res.status(403).json({ message: "incorrect credentials" });
+
+  const token = jwt.sign({ id: existingUser._id }, JWT_PASSWORD, { expiresIn: "7d" });
+
+  return res.json({ token });
 
 
 })
 
 app.post("/api/v1/content",userMiddleware, async (req,res)=>{
+    const title = req.body.title;
     const link = req.body.link;
     const type = req.body.type;
     await contentModel.create({
+        title,
         link,
         type,
         //@ts-ignore
@@ -78,12 +79,12 @@ app.post("/api/v1/content",userMiddleware, async (req,res)=>{
 
 app.get("/api/v1/content",userMiddleware, async (req,res)=>{
     // @ts-ignore
-    const userId = req.body.userId
-    const content = contentModel.find({
+    const userId = req.userId
+    const content = await contentModel.find({
         userId: userId
-    }).populate("userId","username")
+    }).populate("userId","username").lean()
     res.json({
-        message: 'content found'
+      content
     })
 })
 
@@ -99,10 +100,9 @@ app.delete("/api/v1/content",userMiddleware, async (req,res)=>{
 
 })
 
-import crypto from "crypto";
-
-app.post("/api/v1/brain/share",  async (req, res)=>{
-    const userId = req.body.userId
+app.post("/api/v1/brain/share", userMiddleware, async (req, res)=>{
+    // @ts-ignore
+    const userId = req.userId
     const hash = crypto.randomBytes(6).toString("base64url");
     try{
         const created = await linkModel.create({
@@ -111,7 +111,7 @@ app.post("/api/v1/brain/share",  async (req, res)=>{
         })
        return res.json({
             message: 'link created',
-            shareLink: '/api/v1/brain/${created.hash}'
+            shareLink: `/api/v1/brain/${created.hash}`
         })
     }
     catch(e){
@@ -143,4 +143,6 @@ app.get("/api/v1/brain/:shareLink", async (req, res) => {
 
 
 
-app.listen(3000);
+app.listen(3000, ()=>{
+    console.log("server runs on port 3000")
+});
