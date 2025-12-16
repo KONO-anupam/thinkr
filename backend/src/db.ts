@@ -1,5 +1,6 @@
 import mongoose, {  model, Schema } from "mongoose";
 import dotenv from "dotenv";
+import type { hash } from "crypto";
 dotenv.config();
 
 const dbUrl = process.env.DATABASE_URL; 
@@ -47,4 +48,4 @@ const tagSchema = new mongoose.Schema({
   title: { type: String, required: true, unique: true }
 });
 
-export const tagModel = mongoose.model('Tags', tagSchema);
+export const tagModel = mongoose.model('Tag', tagSchema);

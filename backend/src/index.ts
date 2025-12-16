@@ -135,8 +135,8 @@ app.get("/api/v1/brain/:shareLink", async (req, res) => {
 
     return res.json({ owner: linkDoc.userId, content });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "could not open share" });
+    console.error("Error in GET /api/v1/brain/:shareLink:", err);
+    return res.status(500).json({ message: "could not open share", error: err instanceof Error ? err.message : String(err) });
   }
 });
 
